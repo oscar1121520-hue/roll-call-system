@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>安親班點名系統</title>
     <style>
-        :root { --primary: #4a90e2; --bg: #f4f7f6; --card: #ffffff; --present: #28a745; --absent: #dc3545; }
+        :root {
+            --primary: #4a90e2;
+            --bg: #f4f7f6;
+            --card: #ffffff;
+            --present: #28a745;
+            --absent: #dc3545;
+        }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1 { font-size: 1.4rem; color: var(--primary); text-align: center; margin-top: 0; }
@@ -13,17 +19,21 @@
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
         select, input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
         .student-item { border-bottom: 1px solid #eee; padding: 15px 0; }
+        .student-item:last-child { border-bottom: none; }
         .student-name { font-weight: bold; margin-bottom: 10px; display: block; }
         .status-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
-        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; color: #777; text-align: center; }
+        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: bold; color: #777; text-align: center; }
         .btn-status.active-present { background: var(--present); color: white; border-color: var(--present); }
         .btn-status.active-absent { background: var(--absent); color: white; border-color: var(--absent); }
         .submit-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
         .hidden { display: none; }
+        .observer-mode-tag { background: #e9ecef; color: #495057; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.9rem; text-align: center; }
+        #loadingMsg { text-align: center; color: #666; font-style: italic; margin: 20px 0; }
     </style>
 </head>
 <body>
     <div id="app">
+        <!-- 班級選擇頁面 -->
         <div id="setup-screen" class="card">
             <h1>安親班點名系統</h1>
             <div class="form-group">
@@ -40,72 +50,142 @@
                     <option value="R7">R7</option>
                 </select>
             </div>
-            <div class="form-group"><label>日期</label><input type="date" id="datePicker"></div>
-            <div class="form-group"><label>操作模式</label><select id="modeSelect"><option value="edit">編輯點名</option><option value="view">觀察者模式</option></select></div>
+            <div class="form-group">
+                <label>日期</label>
+                <input type="date" id="datePicker">
+            </div>
+            <div class="form-group">
+                <label>操作模式</label>
+                <select id="modeSelect">
+                    <option value="edit">編輯點名</option>
+                    <option value="view">觀察者模式 (僅瀏覽)</option>
+                </select>
+            </div>
             <button class="submit-btn" onclick="enterSystem()">進入點名</button>
         </div>
+
+        <!-- 學生清單頁面 -->
         <div id="rollcall-screen" class="card hidden">
             <h1 id="currentTitle">班級點名</h1>
-            <div id="studentList">載入名單中...</div>
-            <button class="submit-btn" id="saveBtn" onclick="submitData()">儲存並送出</button>
-            <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
+            <div id="loadingMsg" class="hidden">正在從試算表載入名單...</div>
+            <div id="studentList"></div>
+            <div id="footerAction">
+                <button class="submit-btn" id="saveBtn" onclick="submitData()">儲存並送出</button>
+                <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
+            </div>
         </div>
     </div>
-    <script>
-        // 請在此處填入您的「網頁應用程式 URL」(結尾為 /exec 的網址)
-        const WEB_APP_URL = "請在此填入正確的EXEC網址"; 
 
-        function init() { document.getElementById('datePicker').value = new Date().toISOString().split('T')[0]; }
+    <script>
+        // 更新後的 Google Apps Script URL[cite: 1]
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
+
+        function init() {
+            const today = new Date();
+            document.getElementById('datePicker').value = today.toISOString().split('T')[0];
+        }
 
         function enterSystem() {
             const className = document.getElementById('classSelect').value;
             const mode = document.getElementById('modeSelect').value;
+            const date = document.getElementById('datePicker').value;
+
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('rollcall-screen').classList.remove('hidden');
-            document.getElementById('currentTitle').innerText = className;
-            if (mode === 'view') document.getElementById('saveBtn').classList.add('hidden');
+            document.getElementById('currentTitle').innerText = className + " (" + date + ")";
+
+            const isReadOnly = (mode === 'view');
+            if (isReadOnly) document.getElementById('saveBtn').classList.add('hidden');
+
+            loadRealStudents(className, isReadOnly);
+        }
+
+        // 從 GAS 動態讀取名單[cite: 1, 2]
+        function loadRealStudents(className, isReadOnly) {
+            const listContainer = document.getElementById('studentList');
+            const loadingMsg = document.getElementById('loadingMsg');
             
-            // 讀取真實名單
+            listContainer.innerHTML = "";
+            loadingMsg.classList.remove('hidden');
+
             fetch(`${WEB_APP_URL}?action=getStudents&className=${encodeURIComponent(className)}`)
-            .then(res => res.json())
+            .then(response => response.json())
             .then(students => {
-                const list = document.getElementById('studentList');
-                if (!students.length) { list.innerHTML = "無名單"; return; }
-                list.innerHTML = students.map((name, i) => `
-                    <div class="student-item" data-name="${name}">
-                        <span class="student-name">${name}</span>
-                        <div class="status-toggle ${mode === 'view' ? 'hidden' : ''}">
-                            <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
-                            <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
-                        </div>
-                        <textarea id="note_${i}" placeholder="備註..." ${mode === 'view' ? 'disabled' : ''}></textarea>
-                    </div>
-                `).join('');
+                loadingMsg.classList.add('hidden');
+                if (!students || students.length === 0) {
+                    listContainer.innerHTML = "<p style='text-align:center;'>此班級在試算表中尚無名單。</p>";
+                    return;
+                }
+                renderList(students, isReadOnly);
+            })
+            .catch(err => {
+                loadingMsg.classList.add('hidden');
+                listContainer.innerHTML = "<p style='color:red; text-align:center;'>讀取失敗，請確認 GAS 部署權限是否設為「所有人」。</p>";
+                console.error("Fetch Error:", err);
             });
         }
 
-        function toggleStatus(i, type) {
-            const p = document.getElementById(`p_${i}`), a = document.getElementById(`a_${i}`);
-            p.className = (type === 'p') ? 'btn-status active-present' : 'btn-status';
-            a.className = (type === 'a') ? 'btn-status active-absent' : 'btn-status';
-            p.parentElement.parentElement.dataset.status = (type === 'p') ? "已到" : "請假";
+        function renderList(students, isReadOnly) {
+            const listContainer = document.getElementById('studentList');
+            listContainer.innerHTML = students.map((name, i) => `
+                <div class="student-item" data-name="${name}">
+                    <span class="student-name">${name}</span>
+                    <div class="status-toggle ${isReadOnly ? 'hidden' : ''}">
+                        <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
+                        <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
+                    </div>
+                    <textarea id="note_${i}" placeholder="輸入備註..." ${isReadOnly ? 'disabled' : ''}></textarea>
+                    ${isReadOnly ? '<div class="observer-mode-tag">觀察者模式：僅供檢視</div>' : ''}
+                </div>
+            `).join('');
+        }
+
+        function toggleStatus(index, type) {
+            const pBtn = document.getElementById(`p_${index}`);
+            const aBtn = document.getElementById(`a_${index}`);
+            const item = pBtn.parentElement.parentElement;
+            
+            if (type === 'p') {
+                pBtn.classList.add('active-present');
+                aBtn.classList.remove('active-absent');
+                item.dataset.status = "已到";
+            } else {
+                aBtn.classList.add('active-absent');
+                pBtn.classList.remove('active-present');
+                item.dataset.status = "請假";
+            }
         }
 
         function submitData() {
             const className = document.getElementById('classSelect').value;
             const date = document.getElementById('datePicker').value;
-            document.querySelectorAll('.student-item').forEach((item, i) => {
+            const items = document.querySelectorAll('.student-item');
+            
+            let count = 0;
+            items.forEach((item, i) => {
+                const name = item.dataset.name;
+                const status = item.dataset.status || "未填";
+                const note = document.getElementById(`note_${i}`).value;
+
                 fetch(WEB_APP_URL, {
-                    method: "POST", mode: "no-cors",
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        date: date, className: className, 
-                        student: item.dataset.name, status: item.dataset.status || "未填", 
-                        note: document.getElementById(`note_${i}`).value
+                        date: date,
+                        className: className,
+                        student: name,
+                        status: status,
+                        note: note
                     })
                 });
+                count++;
             });
-            alert("已送出！"); location.reload();
+
+            alert(`已發送 ${count} 筆資料！請至試算表查看。`);
+            location.reload();
         }
+
         init();
     </script>
 </body>
