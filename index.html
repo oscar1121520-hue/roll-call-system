@@ -3,183 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級管理系統 - 點名與監控</title>
+    <title>班級管理系統 - 專業全功能版</title>
     <style>
-        :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --bg: #f8f9fa; }
+        :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --warning: #fbbc05; --bg: #f8f9fa; }
         body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); }
-        h1 { color: var(--primary); text-align: center; margin-bottom: 25px; font-size: 24px; }
+        h1 { color: var(--primary); text-align: center; font-size: 24px; margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin: 15px 0 8px; color: #555; }
         select, input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
         .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 15px; }
         .btn-blue { background: var(--primary); color: white; }
-        .btn-blue:active { background: #174ea6; }
-        
-        /* 點名卡片樣式 */
-        .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 15px; background: #fafafa; }
-        .student-name { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; }
-        
-        /* 橫向按鈕組 */
-        .status-group { display: flex; gap: 10px; margin-bottom: 10px; }
-        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; color: #666; transition: 0.3s; }
-        
-        /* 選中狀態樣式 */
+        .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 15px; background: #fafafa; position: relative; }
+        .status-group { display: flex; gap: 10px; margin: 10px 0; }
+        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; color: #666; transition: 0.2s; }
         .active-p { border-color: var(--secondary); background: #e6f4ea; color: #1e8e3e; }
         .active-a { border-color: var(--danger); background: #fce8e6; color: #d93025; }
-        
-        /* 備註欄位樣式 */
-        .memo-input { width: 100%; padding: 8px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-top: 5px; }
-        
+        .memo-input { width: 100%; padding: 8px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         .hidden { display: none; }
-        .obs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .status-tag { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
-        .tag-p { background: #e6f4ea; color: #1e8e3e; }
-        .tag-a { background: #fce8e6; color: #d93025; }
+        .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 12px; }
+        .st-wait { color: var(--warning); font-weight: bold; }
+        .st-ok { color: var(--secondary); }
+        .loader { text-align: center; padding: 20px; color: var(--primary); font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 id="title">班級點名系統</h1>
-
-    <!-- 步驟 1：首頁選單 -->
+    <h1>班級點名系統</h1>
     <div id="step1">
-        <label>模式選擇</label>
-        <select id="mode">
-            <option value="roll">📝 老師點名模式 (按鈕選擇)</option>
-            <option value="view">👁️ 觀察者模式 (僅瀏覽)</option>
-        </select>
-        <label>選擇班級</label>
-        <select id="classSelect"><option>讀取清單中...</option></select>
+        <label>班級</label>
+        <select id="classSelect"><option>載入班級中...</option></select>
         <label>日期</label>
         <input type="date" id="datePicker">
-        <button class="btn btn-blue" onclick="initSystem()">進入系統</button>
+        <button class="btn btn-blue" onclick="initSystem()">進入點名模式</button>
     </div>
 
-    <!-- 步驟 2：正式點名畫面 -->
     <div id="stepRoll" class="hidden">
-        <h2 id="rcTitle" style="text-align:center; color:#555;"></h2>
+        <h2 id="rcTitle" style="text-align:center;"></h2>
+        <div id="rcLoader" class="loader">正在同步雲端資料...</div>
         <div id="studentList"></div>
-        <button class="btn btn-blue" onclick="submitData()">確認送出點名表</button>
-        <button class="btn" style="background:#dadce0;" onclick="location.reload()">返回上一步</button>
-    </div>
-
-    <!-- 步驟 3：觀察者唯讀畫面 -->
-    <div id="stepView" class="hidden">
-        <h2 id="viewTitle" style="text-align:center; color:var(--secondary);">今日出缺席看板</h2>
-        <div id="viewList"></div>
-        <button class="btn" style="background:#dadce0; margin-top:20px;" onclick="location.reload()">返回首頁</button>
+        <button class="btn btn-blue" onclick="manualSync()">強制重試同步</button>
+        <button class="btn" style="background:#dadce0;" onclick="location.reload()">返回首頁</button>
     </div>
 </div>
 
 <script>
+    // 已更新為您提供的最新 SCRIPT URL
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
+    let offlineQueue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
 
     window.onload = () => {
         document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
+        // 優先讀取班級清單並快取
         fetch(`${SCRIPT_URL}?action=getClasses`)
-            .then(res => res.json())
-            .then(data => {
-                const select = document.getElementById('classSelect');
-                select.innerHTML = data.map(c => `<option value="${c}">${c}</option>`).join('');
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('classSelect').innerHTML = d.map(c => `<option value="${c}">${c}</option>`).join('');
+                localStorage.setItem('cached_classes', JSON.stringify(d));
+            })
+            .catch(() => {
+                const cached = JSON.parse(localStorage.getItem('cached_classes') || '[]');
+                if(cached.length) document.getElementById('classSelect').innerHTML = cached.map(c => `<option value="${c}">${c}</option>`).join('');
             });
+        
+        // 每 5 秒自動嘗試排隊同步
+        setInterval(processQueue, 5000);
     };
 
-    function initSystem() {
-        const mode = document.getElementById('mode').value;
-        const className = document.getElementById('classSelect').value;
+    async function initSystem() {
+        const cls = document.getElementById('classSelect').value;
         const date = document.getElementById('datePicker').value;
         document.getElementById('step1').classList.add('hidden');
-        if (mode === 'roll') { setupRollMode(className); } 
-        else { setupViewMode(className, date); }
-    }
-
-    // 正式點名邏輯
-    function setupRollMode(cls) {
         document.getElementById('stepRoll').classList.remove('hidden');
         document.getElementById('rcTitle').innerText = cls;
-        const listDiv = document.getElementById('studentList');
-        listDiv.innerHTML = "學生名單加載中...";
 
-        fetch(`${SCRIPT_URL}?action=getStudents&className=${encodeURIComponent(cls)}`)
-            .then(res => res.json())
-            .then(students => {
-                listDiv.innerHTML = students.map((name, i) => `
-                    <div class="card" data-name="${name}" id="card_${i}">
-                        <span class="student-name">${name}</span>
-                        <div class="status-group">
-                            <div class="status-btn" id="btn_p_${i}" onclick="selectStatus(${i}, '已到')">已到</div>
-                            <div class="status-btn" id="btn_a_${i}" onclick="selectStatus(${i}, '請假')">請假</div>
-                        </div>
-                        <input type="text" id="memo_${i}" class="memo-input" placeholder="新增備註...">
-                    </div>
-                `).join('');
-            });
-    }
-
-    // 處理狀態切換
-    function selectStatus(index, status) {
-        const card = document.getElementById(`card_${index}`);
-        const btnP = document.getElementById(`btn_p_${index}`);
-        const btnA = document.getElementById(`btn_a_${index}`);
-        
-        // 重設樣式
-        btnP.classList.remove('active-p');
-        btnA.classList.remove('active-a');
-        
-        // 套用選中樣式並存入資料
-        if (status === '已到') {
-            btnP.classList.add('active-p');
-            card.dataset.status = "已到";
-        } else {
-            btnA.classList.add('active-a');
-            card.dataset.status = "請假";
+        try {
+            // 提速：合併名單與舊紀錄抓取
+            const resp = await fetch(`${SCRIPT_URL}?action=getStudents&className=${encodeURIComponent(cls)}&date=${date}`);
+            const data = await resp.json();
+            document.getElementById('rcLoader').classList.add('hidden');
+            renderList(data);
+            // 存入名單快取供斷網時使用
+            localStorage.setItem(`cache_${cls}_${date}`, JSON.stringify(data));
+        } catch (e) {
+            const cached = JSON.parse(localStorage.getItem(`cache_${cls}_${date}`) || '[]');
+            document.getElementById('rcLoader').classList.add('hidden');
+            renderList(cached);
+            if(!cached.length) alert("目前無網路且無快取資料，請連網後重試。");
         }
     }
 
-    function submitData() {
-        const cls = document.getElementById('classSelect').value;
-        const date = document.getElementById('datePicker').value;
-        const items = document.querySelectorAll('#studentList .card');
-
-        items.forEach((item, i) => {
-            const status = item.dataset.status || "未點名";
-            fetch(SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({
-                    date: date, className: cls,
-                    student: item.dataset.name, status: status,
-                    note: document.getElementById(`memo_${i}`).value
-                })
-            });
-        });
-        alert("點名資料上傳中！");
-        location.reload();
+    function renderList(data) {
+        document.getElementById('studentList').innerHTML = data.map((item, i) => `
+            <div class="card" data-name="${item.name}" id="card_${i}" data-status="${item.status}">
+                <div class="sync-indicator" id="sync_${i}">${item.status ? '● 已存檔' : ''}</div>
+                <strong>${item.name}</strong>
+                <div class="status-group">
+                    <div class="status-btn ${item.status === '已到' ? 'active-p' : ''}" id="btn_p_${i}" onclick="handleSelect(${i}, '已到')">已到</div>
+                    <div class="status-btn ${item.status === '請假' ? 'active-a' : ''}" id="btn_a_${i}" onclick="handleSelect(${i}, '請假')">請假</div>
+                </div>
+                <input type="text" id="memo_${i}" class="memo-input" placeholder="新增備註..." value="${item.note || ''}" onchange="queueData(${i})">
+            </div>
+        `).join('');
     }
 
-    // 觀察者模式邏輯
-    function setupViewMode(cls, date) {
-        document.getElementById('stepView').classList.remove('hidden');
-        const listDiv = document.getElementById('viewList');
-        listDiv.innerHTML = "讀取中...";
-        fetch(`${SCRIPT_URL}?action=getViewOnly&className=${encodeURIComponent(cls)}&date=${date}`)
-            .then(res => res.json())
-            .then(records => {
-                if (records.length === 0) {
-                    listDiv.innerHTML = `<p style="text-align:center; color:#999;">本日尚無記錄</p>`;
-                    return;
-                }
-                listDiv.innerHTML = records.map(r => `
-                    <div class="obs-item">
-                        <span><strong>${r.student}</strong></span>
-                        <div>
-                            <span class="status-tag ${r.status === '已到' ? 'tag-p' : 'tag-a'}">${r.status}</span>
-                            <div style="font-size:12px; color:#888; text-align:right;">${r.note || ""}</div>
-                        </div>
-                    </div>
-                `).join('');
-            });
+    function handleSelect(idx, status) {
+        const card = document.getElementById(`card_${idx}`);
+        document.getElementById(`btn_p_${idx}`).classList.toggle('active-p', status === '已到');
+        document.getElementById(`btn_a_${idx}`).classList.toggle('active-a', status === '請假');
+        card.dataset.status = status;
+        queueData(idx);
+    }
+
+    function queueData(idx) {
+        const card = document.getElementById(`card_${idx}`);
+        const indicator = document.getElementById(`sync_${idx}`);
+        const payload = {
+            date: document.getElementById('datePicker').value,
+            className: document.getElementById('classSelect').value,
+            student: card.dataset.name,
+            status: card.dataset.status,
+            note: document.getElementById(`memo_${idx}`).value,
+            uid: `${document.getElementById('datePicker').value}_${card.dataset.name}`
+        };
+
+        indicator.innerText = "● 等待同步...";
+        indicator.className = "sync-indicator st-wait";
+
+        // 更新離線隊列（若有舊的則蓋掉）
+        offlineQueue = offlineQueue.filter(q => q.uid !== payload.uid);
+        offlineQueue.push(payload);
+        localStorage.setItem('attendance_queue', JSON.stringify(offlineQueue));
+        
+        // 嘗試立即傳輸
+        processQueue();
+    }
+
+    async function processQueue() {
+        if (!navigator.onLine || offlineQueue.length === 0) return;
+        
+        const item = offlineQueue[0];
+        try {
+            await fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
+            // 成功後移出隊列
+            offlineQueue.shift();
+            localStorage.setItem('attendance_queue', JSON.stringify(offlineQueue));
+            updateSyncUI(item.student);
+            // 遞迴處理下一個
+            processQueue();
+        } catch (e) {
+            console.log("網路連線中斷，將於背景自動重試...");
+        }
+    }
+
+    function updateSyncUI(name) {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach((card, i) => {
+            if (card.dataset.name === name) {
+                const ind = document.getElementById(`sync_${i}`);
+                ind.innerText = "● 已同步";
+                ind.className = "sync-indicator st-ok";
+            }
+        });
+    }
+
+    function manualSync() { 
+        if(!navigator.onLine) return alert("目前偵測不到網路，請恢復連線後再試。");
+        processQueue(); 
+        alert("正在嘗試強制重新同步所有記錄..."); 
     }
 </script>
 </body>
