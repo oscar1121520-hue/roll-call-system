@@ -15,53 +15,51 @@
         .student-item { border-bottom: 1px solid #eee; padding: 15px 0; }
         .student-name { font-weight: bold; margin-bottom: 10px; display: block; }
         .status-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
-        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; color: #777; text-align: center; }
+        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; color: #777; text-align: center; transition: 0.2s; }
         .btn-status.active-present { background: var(--present); color: white; border-color: var(--present); }
         .btn-status.active-absent { background: var(--absent); color: white; border-color: var(--absent); }
         .submit-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
         .hidden { display: none; }
-        #loadingMsg { text-align: center; color: #666; font-style: italic; margin: 20px 0; }
+        #loadingMsg { text-align: center; color: #666; font-style: italic; padding: 20px 0; }
     </style>
 </head>
 <body>
     <div id="app">
-        <!-- 設定頁面 -->
+        <!-- 班級選擇首頁 -->
         <div id="setup-screen" class="card">
-            <h1>安親班點名系統</h1>
+            <h1>點名系統管理</h1>
             <div class="form-group">
-                <label>選擇班級</label>
-                <select id="classSelect">
-                    <option>正在載入班級...</option>
-                </select>
+                <label>選擇班級 (由試算表自動讀取)</label>
+                <select id="classSelect"><option>載入中...</option></select>
             </div>
-            <div class="form-group"><label>日期</label><input type="date" id="datePicker"></div>
+            <div class="form-group"><label>點名日期</label><input type="date" id="datePicker"></div>
             <div class="form-group">
-                <label>操作模式</label>
+                <label>模式</label>
                 <select id="modeSelect">
                     <option value="edit">編輯點名</option>
-                    <option value="view">觀察者模式</option>
+                    <option value="view">僅供觀看</option>
                 </select>
             </div>
-            <button class="submit-btn" onclick="enterSystem()">進入點名</button>
+            <button class="submit-btn" onclick="enterSystem()">開始點名</button>
         </div>
 
-        <!-- 點名頁面 -->
+        <!-- 學生點名清單頁 -->
         <div id="rollcall-screen" class="card hidden">
-            <h1 id="currentTitle">班級點名</h1>
-            <div id="loadingMsg" class="hidden">載入名單中...</div>
+            <h1 id="currentTitle">班級名單</h1>
+            <div id="loadingMsg" class="hidden">同步雲端資料中...</div>
             <div id="studentList"></div>
-            <button class="submit-btn" id="saveBtn" onclick="submitData()">儲存並送出</button>
+            <button class="submit-btn" id="saveBtn" onclick="submitData()">確認並存入試算表</button>
             <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
         </div>
     </div>
 
     <script>
+        // 您的專屬 GAS 網址[cite: 1]
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
 
-        // 初始化：設定日期與自動抓取班級選單[cite: 1, 2]
         function init() {
             document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
-            
+            // 頁面開啟時，自動去試算表抓取 A 欄班級名單[cite: 2, 3]
             fetch(`${WEB_APP_URL}?action=getClasses`)
                 .then(res => res.json())
                 .then(classes => {
@@ -69,12 +67,10 @@
                     if (classes && classes.length > 0) {
                         select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');[cite: 3]
                     } else {
-                        select.innerHTML = "<option>無班級資料</option>";
+                        select.innerHTML = "<option>試算表內無班級資料</option>";
                     }
                 })
-                .catch(err => {
-                    document.getElementById('classSelect').innerHTML = "<option>載入失敗，請檢查網路</option>";
-                });
+                .catch(err => console.error("無法載入班級:", err));
         }
 
         function enterSystem() {
@@ -98,10 +94,7 @@
                 .then(res => res.json())
                 .then(students => {
                     loader.classList.add('hidden');
-                    if (!students || students.length === 0) {
-                        list.innerHTML = "此班級無學生名單。";
-                        return;
-                    }
+                    if (!students.length) { list.innerHTML = "找不到學生資料，請檢查試算表。"; return; }
                     list.innerHTML = students.map((name, i) => `
                         <div class="student-item" data-name="${name}">
                             <span class="student-name">${name}</span>
@@ -109,7 +102,7 @@
                                 <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
                                 <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
                             </div>
-                            <textarea id="note_${i}" placeholder="備註..." ${isReadOnly ? 'disabled' : ''}></textarea>
+                            <textarea id="note_${i}" placeholder="補充說明..." ${isReadOnly ? 'disabled' : ''}></textarea>
                         </div>
                     `).join('');
                 });
@@ -137,7 +130,7 @@
                     })
                 });[cite: 2, 3]
             });
-            alert("已成功送出點名資料！");
+            alert("點名資料已發送！請至試算表確認。");
             location.reload();
         }
 
