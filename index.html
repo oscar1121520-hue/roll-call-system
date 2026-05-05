@@ -6,103 +6,86 @@
     <title>安親班點名系統</title>
     <style>
         :root { --primary: #4a90e2; --bg: #f4f7f6; --card: #ffffff; --present: #28a745; --absent: #dc3545; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1 { font-size: 1.4rem; color: var(--primary); text-align: center; margin-top: 0; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
         select, input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
         .student-item { border-bottom: 1px solid #eee; padding: 15px 0; }
-        .student-name { font-weight: bold; margin-bottom: 10px; display: block; }
-        .status-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
-        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; color: #777; text-align: center; transition: 0.2s; }
+        .status-toggle { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-status { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center; color: #777; transition: 0.2s; }
         .btn-status.active-present { background: var(--present); color: white; border-color: var(--present); }
         .btn-status.active-absent { background: var(--absent); color: white; border-color: var(--absent); }
-        .submit-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+        .submit-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-top: 20px; }
         .hidden { display: none; }
-        #loadingMsg { text-align: center; color: #666; font-style: italic; padding: 20px 0; }
     </style>
 </head>
 <body>
-    <div id="app">
-        <!-- 班級選擇首頁 -->
-        <div id="setup-screen" class="card">
-            <h1>點名系統管理</h1>
-            <div class="form-group">
-                <label>選擇班級 (由試算表自動讀取)</label>
-                <select id="classSelect"><option>載入中...</option></select>
-            </div>
-            <div class="form-group"><label>點名日期</label><input type="date" id="datePicker"></div>
-            <div class="form-group">
-                <label>模式</label>
-                <select id="modeSelect">
-                    <option value="edit">編輯點名</option>
-                    <option value="view">僅供觀看</option>
-                </select>
-            </div>
-            <button class="submit-btn" onclick="enterSystem()">開始點名</button>
+    <div id="setup-screen" class="card">
+        <h1>點名系統管理</h1>
+        <div class="form-group">
+            <label>選擇班級</label>
+            <select id="classSelect"><option>載入中...</option></select>
         </div>
+        <div class="form-group">
+            <label>點名日期</label>
+            <input type="date" id="datePicker">
+        </div>
+        <button class="submit-btn" onclick="enterSystem()">開始點名</button>
+    </div>
 
-        <!-- 學生點名清單頁 -->
-        <div id="rollcall-screen" class="card hidden">
-            <h1 id="currentTitle">班級名單</h1>
-            <div id="loadingMsg" class="hidden">同步雲端資料中...</div>
-            <div id="studentList"></div>
-            <button class="submit-btn" id="saveBtn" onclick="submitData()">確認並存入試算表</button>
-            <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
-        </div>
+    <div id="rollcall-screen" class="card hidden">
+        <h1 id="currentTitle">班級名單</h1>
+        <div id="studentList"></div>
+        <button class="submit-btn" onclick="submitData()">確認並存入試算表</button>
+        <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回首頁</button>
     </div>
 
     <script>
-        // 您的專屬 GAS 網址[cite: 1]
+        // 您更新後的新網址
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
 
         function init() {
             document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
-            // 頁面開啟時，自動去試算表抓取 A 欄班級名單[cite: 2, 3]
+            // 從 A 欄讀取班級
             fetch(`${WEB_APP_URL}?action=getClasses`)
                 .then(res => res.json())
                 .then(classes => {
                     const select = document.getElementById('classSelect');
                     if (classes && classes.length > 0) {
-                        select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');[cite: 3]
+                        select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');
                     } else {
-                        select.innerHTML = "<option>試算表內無班級資料</option>";
+                        select.innerHTML = "<option>無資料，請檢查試算表</option>";
                     }
                 })
-                .catch(err => console.error("無法載入班級:", err));
+                .catch(err => {
+                    document.getElementById('classSelect').innerHTML = "<option>連線失敗</option>";
+                });
         }
 
         function enterSystem() {
             const className = document.getElementById('classSelect').value;
-            const mode = document.getElementById('modeSelect').value;
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('rollcall-screen').classList.remove('hidden');
             document.getElementById('currentTitle').innerText = className;
-            if (mode === 'view') document.getElementById('saveBtn').classList.add('hidden');
-            
-            loadStudents(className, mode === 'view');
+            loadStudents(className);
         }
 
-        function loadStudents(className, isReadOnly) {
+        function loadStudents(className) {
             const list = document.getElementById('studentList');
-            const loader = document.getElementById('loadingMsg');
-            list.innerHTML = "";
-            loader.classList.remove('hidden');
-
-            fetch(`${WEB_APP_URL}?action=getStudents&className=${encodeURIComponent(className)}`)[cite: 2]
+            list.innerHTML = "讀取名單中...";
+            fetch(`${WEB_APP_URL}?action=getStudents&className=${encodeURIComponent(className)}`)
                 .then(res => res.json())
                 .then(students => {
-                    loader.classList.add('hidden');
-                    if (!students.length) { list.innerHTML = "找不到學生資料，請檢查試算表。"; return; }
                     list.innerHTML = students.map((name, i) => `
                         <div class="student-item" data-name="${name}">
-                            <span class="student-name">${name}</span>
-                            <div class="status-toggle ${isReadOnly ? 'hidden' : ''}">
+                            <div style="font-weight:bold;">${name}</div>
+                            <div class="status-toggle">
                                 <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
                                 <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
                             </div>
-                            <textarea id="note_${i}" placeholder="補充說明..." ${isReadOnly ? 'disabled' : ''}></textarea>
+                            <textarea id="note_${i}" placeholder="補充說明..." style="margin-top:10px;"></textarea>
                         </div>
                     `).join('');
                 });
@@ -122,15 +105,16 @@
             
             items.forEach((item, i) => {
                 fetch(WEB_APP_URL, {
-                    method: "POST", mode: "no-cors",
+                    method: "POST",
+                    mode: "no-cors",
                     body: JSON.stringify({
                         date: date, className: className, 
-                        student: item.dataset.name, status: item.dataset.status || "未填", 
+                        student: item.dataset.name, status: item.dataset.status || "未點名", 
                         note: document.getElementById(`note_${i}`).value
                     })
-                });[cite: 2, 3]
+                });
             });
-            alert("點名資料已發送！請至試算表確認。");
+            alert("點名資料已發送！");
             location.reload();
         }
 
