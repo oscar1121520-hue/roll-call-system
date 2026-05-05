@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安親班點名系統</title>
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --bg: #f4f7f6;
+            --card: #ffffff;
+            --present: #28a745;
+            --absent: #dc3545;
+        }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { font-size: 1.4rem; color: var(--primary); text-align: center; margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        select, input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        .student-item { border-bottom: 1px solid #eee; padding: 15px 0; }
+        .student-item:last-child { border-bottom: none; }
+        .student-name { font-weight: bold; margin-bottom: 10px; display: block; }
+        .status-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
+        .btn-status { flex: 1; padding: 10px; border: 2px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: bold; color: #777; text-align: center; }
+        .btn-status.active-present { background: var(--present); color: white; border-color: var(--present); }
+        .btn-status.active-absent { background: var(--absent); color: white; border-color: var(--absent); }
+        .submit-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+        .hidden { display: none; }
+        .observer-mode-tag { background: #e9ecef; color: #495057; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.9rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 班級選擇頁面 -->
+        <div id="setup-screen" class="card">
+            <h1>安親班點名系統</h1>
+            <div class="form-group">
+                <label>選擇班級</label>
+                <select id="classSelect">
+                    <option value="12年級一班">12年級一班</option>
+                    <option value="35年級一班">35年級一班</option>
+                    <option value="46年級一班">46年級一班</option>
+                    <option value="H2">H2</option>
+                    <option value="H5">H5</option>
+                    <option value="R1">R1</option>
+                    <option value="R3">R3</option>
+                    <option value="R5">R5</option>
+                    <option value="R7">R7</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>日期</label>
+                <input type="date" id="datePicker">
+            </div>
+            <div class="form-group">
+                <label>操作模式</label>
+                <select id="modeSelect">
+                    <option value="edit">編輯點名</option>
+                    <option value="view">觀察者模式 (僅瀏覽)</option>
+                </select>
+            </div>
+            <button class="submit-btn" onclick="enterSystem()">進入點名</button>
+        </div>
+
+        <!-- 學生清單頁面 -->
+        <div id="rollcall-screen" class="card hidden">
+            <h1 id="currentTitle">班級點名</h1>
+            <div id="studentList"></div>
+            <div id="footerAction">
+                <button class="submit-btn" id="saveBtn" onclick="submitData()">儲存並送出</button>
+                <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 已自動替換為您的 Google Apps Script URL
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwMa422QzekUH8GXcElrWtU8ZVsTSRPigp3uwsOgNF4muIEq3OP7r2vjQq2dw43Tm9kTg/exec";
+
+        // 設定假日 (格式: YYYY-MM-DD)
+        const holidayList = ["2026-06-19"]; 
+
+        function init() {
+            const today = new Date();
+            let dateStr = today.toISOString().split('T')[0];
+            document.getElementById('datePicker').value = dateStr;
+        }
+
+        function enterSystem() {
+            const className = document.getElementById('classSelect').value;
+            const mode = document.getElementById('modeSelect').value;
+            const date = document.getElementById('datePicker').value;
+
+            // 檢查是否為假日
+            const selectedDate = new Date(date);
+            const day = selectedDate.getDay();
+            if (day === 0 || day === 6 || holidayList.includes(date)) {
+                if (!confirm("所選日期為假日或週末，確定要繼續點名嗎？")) return;
+            }
+
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('rollcall-screen').classList.remove('hidden');
+            document.getElementById('currentTitle').innerText = className + " (" + date + ")";
+
+            const isReadOnly = (mode === 'view');
+            if (isReadOnly) {
+                document.getElementById('saveBtn').classList.add('hidden');
+            }
+            loadStudents(className, isReadOnly);
+        }
+
+        function loadStudents(className, isReadOnly) {
+            // 預設學生名單（實際建議從 GAS getSheetData 獲取，此處為快速演示範例）
+            const mockData = ["學生 A", "學生 B", "學生 C"];
+            const listContainer = document.getElementById('studentList');
+            
+            listContainer.innerHTML = mockData.map((name, i) => `
+                <div class="student-item">
+                    <span class="student-name">${name}</span>
+                    <div class="status-toggle ${isReadOnly ? 'hidden' : ''}">
+                        <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
+                        <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
+                    </div>
+                    <textarea id="note_${i}" placeholder="輸入備註..." ${isReadOnly ? 'disabled' : ''}></textarea>
+                    ${isReadOnly ? '<div class="observer-mode-tag">僅供檢視</div>' : ''}
+                </div>
+            `).join('');
+        }
+
+        function toggleStatus(index, type) {
+            const pBtn = document.getElementById(`p_${index}`);
+            const aBtn = document.getElementById(`a_${index}`);
+            const item = pBtn.parentElement.parentElement;
+            
+            if (type === 'p') {
+                pBtn.classList.add('active-present');
+                aBtn.classList.remove('active-absent');
+                item.dataset.status = "已到";
+            } else {
+                aBtn.classList.add('active-absent');
+                pBtn.classList.remove('active-present');
+                item.dataset.status = "請假";
+            }
+        }
+
+        function submitData() {
+            const className = document.getElementById('classSelect').value;
+            const date = document.getElementById('datePicker').value;
+            const items = document.querySelectorAll('.student-item');
+            
+            items.forEach((item, i) => {
+                const name = item.querySelector('.student-name').innerText;
+                const status = item.dataset.status || "未填";
+                const note = document.getElementById(`note_${i}`).value;
+
+                // 傳送資料到 Google Sheets
+                fetch(WEB_APP_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        date: date,
+                        className: className,
+                        student: name,
+                        status: status,
+                        note: note
+                    })
+                });
+            });
+
+            alert("儲存指令已發送！請檢查試算表。");
+            location.reload();
+        }
+
+        init();
+    </script>
+</body>
+</html>
