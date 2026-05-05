@@ -32,7 +32,6 @@
 </head>
 <body>
     <div id="app">
-        <!-- 班級選擇頁面 -->
         <div id="setup-screen" class="card">
             <h1>安親班點名系統</h1>
             <div class="form-group">
@@ -63,10 +62,9 @@
             <button class="submit-btn" onclick="enterSystem()">進入點名</button>
         </div>
 
-        <!-- 學生清單頁面 -->
         <div id="rollcall-screen" class="card hidden">
             <h1 id="currentTitle">班級點名</h1>
-            <div id="studentList"></div>
+            <div id="studentList">載入名單中...</div>
             <div id="footerAction">
                 <button class="submit-btn" id="saveBtn" onclick="submitData()">儲存並送出</button>
                 <button class="submit-btn" style="background:#6c757d; margin-top:10px;" onclick="location.reload()">回主頁</button>
@@ -75,16 +73,12 @@
     </div>
 
     <script>
-        // 已自動替換為您的 Google Apps Script URL
+        // 您的 Google Apps Script URL
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwMa422QzekUH8GXcElrWtU8ZVsTSRPigp3uwsOgNF4muIEq3OP7r2vjQq2dw43Tm9kTg/exec";
-
-        // 設定假日 (格式: YYYY-MM-DD)
-        const holidayList = ["2026-06-19"]; 
 
         function init() {
             const today = new Date();
-            let dateStr = today.toISOString().split('T')[0];
-            document.getElementById('datePicker').value = dateStr;
+            document.getElementById('datePicker').value = today.toISOString().split('T')[0];
         }
 
         function enterSystem() {
@@ -92,38 +86,48 @@
             const mode = document.getElementById('modeSelect').value;
             const date = document.getElementById('datePicker').value;
 
-            // 檢查是否為假日
-            const selectedDate = new Date(date);
-            const day = selectedDate.getDay();
-            if (day === 0 || day === 6 || holidayList.includes(date)) {
-                if (!confirm("所選日期為假日或週末，確定要繼續點名嗎？")) return;
-            }
-
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('rollcall-screen').classList.remove('hidden');
             document.getElementById('currentTitle').innerText = className + " (" + date + ")";
 
             const isReadOnly = (mode === 'view');
-            if (isReadOnly) {
-                document.getElementById('saveBtn').classList.add('hidden');
-            }
-            loadStudents(className, isReadOnly);
+            if (isReadOnly) document.getElementById('saveBtn').classList.add('hidden');
+
+            loadRealStudents(className, isReadOnly);
         }
 
-        function loadStudents(className, isReadOnly) {
-            // 預設學生名單（實際建議從 GAS getSheetData 獲取，此處為快速演示範例）
-            const mockData = ["學生 A", "學生 B", "學生 C"];
+        // 動態從 GAS 讀取試算表名單
+        function loadRealStudents(className, isReadOnly) {
             const listContainer = document.getElementById('studentList');
-            
-            listContainer.innerHTML = mockData.map((name, i) => `
-                <div class="student-item">
+            listContainer.innerHTML = "正在連線試算表取得名單...";
+
+            // 呼叫 GAS 中的 getSheetData 函數[cite: 2]
+            // 注意：若在 GitHub 環境下執行，請確保 GAS 已正確授權
+            fetch(`${WEB_APP_URL}?action=getStudents&className=${encodeURIComponent(className)}`)
+            .then(response => response.json())
+            .then(students => {
+                if (!students || students.length === 0) {
+                    listContainer.innerHTML = "此班級在試算表中尚無名單。";
+                    return;
+                }
+                renderList(students, isReadOnly);
+            })
+            .catch(err => {
+                console.error(err);
+                listContainer.innerHTML = "讀取失敗，請確認 GAS 網址是否正確，且試算表中有【班級名單】分頁。";
+            });
+        }
+
+        function renderList(students, isReadOnly) {
+            const listContainer = document.getElementById('studentList');
+            listContainer.innerHTML = students.map((name, i) => `
+                <div class="student-item" data-name="${name}">
                     <span class="student-name">${name}</span>
                     <div class="status-toggle ${isReadOnly ? 'hidden' : ''}">
                         <div class="btn-status" id="p_${i}" onclick="toggleStatus(${i}, 'p')">已到</div>
                         <div class="btn-status" id="a_${i}" onclick="toggleStatus(${i}, 'a')">請假</div>
                     </div>
                     <textarea id="note_${i}" placeholder="輸入備註..." ${isReadOnly ? 'disabled' : ''}></textarea>
-                    ${isReadOnly ? '<div class="observer-mode-tag">僅供檢視</div>' : ''}
                 </div>
             `).join('');
         }
@@ -149,12 +153,12 @@
             const date = document.getElementById('datePicker').value;
             const items = document.querySelectorAll('.student-item');
             
+            let dataSent = 0;
             items.forEach((item, i) => {
-                const name = item.querySelector('.student-name').innerText;
+                const name = item.dataset.name;
                 const status = item.dataset.status || "未填";
                 const note = document.getElementById(`note_${i}`).value;
 
-                // 傳送資料到 Google Sheets
                 fetch(WEB_APP_URL, {
                     method: "POST",
                     mode: "no-cors",
@@ -167,9 +171,10 @@
                         note: note
                     })
                 });
+                dataSent++;
             });
 
-            alert("儲存指令已發送！請檢查試算表。");
+            alert(`已發送 ${dataSent} 位學生的點名資料至試算表！`);
             location.reload();
         }
 
