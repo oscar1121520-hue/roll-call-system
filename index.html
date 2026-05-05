@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>班級管理系統 - 點名與監控</title>
     <style>
-        :root { --primary: #1a73e8; --secondary: #34a853; --bg: #f8f9fa; }
+        :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --bg: #f8f9fa; }
         body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); }
         h1 { color: var(--primary); text-align: center; margin-bottom: 25px; font-size: 24px; }
@@ -14,14 +14,27 @@
         .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 15px; }
         .btn-blue { background: var(--primary); color: white; }
         .btn-blue:active { background: #174ea6; }
+        
+        /* 點名卡片樣式 */
         .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 15px; background: #fafafa; }
-        .status-tag { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; }
-        .tag-p { background: #e6f4ea; color: #1e8e3e; }
-        .tag-a { background: #fce8e6; color: #d93025; }
+        .student-name { font-size: 18px; font-weight: bold; margin-bottom: 10px; display: block; }
+        
+        /* 橫向按鈕組 */
+        .status-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; color: #666; transition: 0.3s; }
+        
+        /* 選中狀態樣式 */
+        .active-p { border-color: var(--secondary); background: #e6f4ea; color: #1e8e3e; }
+        .active-a { border-color: var(--danger); background: #fce8e6; color: #d93025; }
+        
+        /* 備註欄位樣式 */
+        .memo-input { width: 100%; padding: 8px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-top: 5px; }
+        
         .hidden { display: none; }
         .obs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .obs-item:last-child { border-bottom: none; }
-        textarea { width: 100%; margin-top: 10px; padding: 8px; border: 1px solid #eee; border-radius: 4px; resize: none; }
+        .status-tag { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+        .tag-p { background: #e6f4ea; color: #1e8e3e; }
+        .tag-a { background: #fce8e6; color: #d93025; }
     </style>
 </head>
 <body>
@@ -33,16 +46,13 @@
     <div id="step1">
         <label>模式選擇</label>
         <select id="mode">
-            <option value="roll">📝 老師點名模式 (可提交)</option>
+            <option value="roll">📝 老師點名模式 (按鈕選擇)</option>
             <option value="view">👁️ 觀察者模式 (僅瀏覽)</option>
         </select>
-
         <label>選擇班級</label>
         <select id="classSelect"><option>讀取清單中...</option></select>
-
         <label>日期</label>
         <input type="date" id="datePicker">
-
         <button class="btn btn-blue" onclick="initSystem()">進入系統</button>
     </div>
 
@@ -65,7 +75,6 @@
 <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
 
-    // 初始化：載入班級名單與設定今日日期
     window.onload = () => {
         document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
         fetch(`${SCRIPT_URL}?action=getClasses`)
@@ -73,8 +82,6 @@
             .then(data => {
                 const select = document.getElementById('classSelect');
                 select.innerHTML = data.map(c => `<option value="${c}">${c}</option>`).join('');
-            }).catch(() => {
-                alert("無法連線至 Google 腳本，請確認 GAS 是否已發佈為「所有人」皆可存取。");
             });
     };
 
@@ -82,14 +89,9 @@
         const mode = document.getElementById('mode').value;
         const className = document.getElementById('classSelect').value;
         const date = document.getElementById('datePicker').value;
-
         document.getElementById('step1').classList.add('hidden');
-
-        if (mode === 'roll') {
-            setupRollMode(className);
-        } else {
-            setupViewMode(className, date);
-        }
+        if (mode === 'roll') { setupRollMode(className); } 
+        else { setupViewMode(className, date); }
     }
 
     // 正式點名邏輯
@@ -103,17 +105,36 @@
             .then(res => res.json())
             .then(students => {
                 listDiv.innerHTML = students.map((name, i) => `
-                    <div class="card" data-name="${name}">
-                        <strong>${name}</strong>
-                        <select onchange="this.parentElement.dataset.status=this.value" style="margin-top:10px;">
-                            <option value="">-- 點名狀態 --</option>
-                            <option value="已到">✅ 已到</option>
-                            <option value="請假">❌ 請假</option>
-                        </select>
-                        <textarea id="memo_${i}" placeholder="備註內容..." rows="1"></textarea>
+                    <div class="card" data-name="${name}" id="card_${i}">
+                        <span class="student-name">${name}</span>
+                        <div class="status-group">
+                            <div class="status-btn" id="btn_p_${i}" onclick="selectStatus(${i}, '已到')">已到</div>
+                            <div class="status-btn" id="btn_a_${i}" onclick="selectStatus(${i}, '請假')">請假</div>
+                        </div>
+                        <input type="text" id="memo_${i}" class="memo-input" placeholder="新增備註...">
                     </div>
                 `).join('');
             });
+    }
+
+    // 處理狀態切換
+    function selectStatus(index, status) {
+        const card = document.getElementById(`card_${index}`);
+        const btnP = document.getElementById(`btn_p_${index}`);
+        const btnA = document.getElementById(`btn_a_${index}`);
+        
+        // 重設樣式
+        btnP.classList.remove('active-p');
+        btnA.classList.remove('active-a');
+        
+        // 套用選中樣式並存入資料
+        if (status === '已到') {
+            btnP.classList.add('active-p');
+            card.dataset.status = "已到";
+        } else {
+            btnA.classList.add('active-a');
+            card.dataset.status = "請假";
+        }
     }
 
     function submitData() {
@@ -122,22 +143,18 @@
         const items = document.querySelectorAll('#studentList .card');
 
         items.forEach((item, i) => {
-            const status = item.dataset.status;
-            if (!status) return;
-
+            const status = item.dataset.status || "未點名";
             fetch(SCRIPT_URL, {
                 method: "POST",
                 mode: "no-cors",
                 body: JSON.stringify({
-                    date: date,
-                    className: cls,
-                    student: item.dataset.name,
-                    status: status,
+                    date: date, className: cls,
+                    student: item.dataset.name, status: status,
                     note: document.getElementById(`memo_${i}`).value
                 })
             });
         });
-        alert("資料上傳中，請稍候於試算表中確認。");
+        alert("點名資料上傳中！");
         location.reload();
     }
 
@@ -145,13 +162,12 @@
     function setupViewMode(cls, date) {
         document.getElementById('stepView').classList.remove('hidden');
         const listDiv = document.getElementById('viewList');
-        listDiv.innerHTML = "正在抓取最新資料...";
-
+        listDiv.innerHTML = "讀取中...";
         fetch(`${SCRIPT_URL}?action=getViewOnly&className=${encodeURIComponent(cls)}&date=${date}`)
             .then(res => res.json())
             .then(records => {
                 if (records.length === 0) {
-                    listDiv.innerHTML = `<p style="text-align:center; color:#999; margin:30px 0;">該班級於此日期尚無點名記錄</p>`;
+                    listDiv.innerHTML = `<p style="text-align:center; color:#999;">本日尚無記錄</p>`;
                     return;
                 }
                 listDiv.innerHTML = records.map(r => `
