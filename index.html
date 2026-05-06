@@ -1,133 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班級點名系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級點名系統 v4</title>
     <style>
-        :root { --primary: #1a73e8; --bg: #f8f9fa; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        :root { --primary: #1a73e8; --success: #34a853; --danger: #ea4335; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .hidden { display: none !important; }
-        select, input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-        .btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn:disabled { background: #ccc; }
         
-        /* 覆蓋層修正 */
-        #loader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 10000;
-        }
-        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        /* 狀態顯示區 */
+        #dataStatus { font-size: 12px; text-align: center; color: #666; margin-bottom: 10px; }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+        
+        /* 表單元素 */
+        label { display: block; margin: 15px 0 5px; font-weight: bold; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-blue { background: var(--primary); color: white; margin-top: 20px; }
+        .btn-blue:disabled { background: #ccc; }
+
+        /* 點名卡片 */
+        .card { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
+        .student-info { flex-grow: 1; }
+        .btn-group { display: flex; gap: 10px; }
+        .opt-btn { padding: 10px 15px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; }
+        .opt-btn.active-p { background: var(--success); color: white; border-color: var(--success); }
+        .opt-btn.active-a { background: var(--danger); color: white; border-color: var(--danger); }
+        
+        /* 遮罩優化：點擊即消失，防止死鎖 */
+        #loader { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .spinner { width: 30px; height: 30px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .card { border: 1px solid #eee; padding: 15px; margin: 10px 0; border-radius: 8px; }
-        .status-btn { padding: 10px 20px; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; }
-        .active-p { background: #e6f4ea; border-color: #34a853; color: #1e8e3e; }
-        .active-a { background: #fce8e8; border-color: #ea4335; color: #d93025; }
     </style>
 </head>
 <body>
 
-<div id="loader" class="hidden">
+<div id="loader" class="hidden" onclick="this.classList.add('hidden')">
     <div class="spinner"></div>
-    <p>資料處理中...</p>
+    <p>通訊中 (點擊畫面可強制關閉)</p>
 </div>
 
-<div class="container" id="mainPage">
-    <h2>點名系統</h2>
-    <label>日期</label>
-    <input type="date" id="datePick">
-    <label>班級</label>
-    <select id="classPick"><option value="">讀取中...</option></select>
-    <button class="btn" id="startBtn" onclick="enterSystem()">啟動系統</button>
+<div class="container" id="page1">
+    <h2 style="text-align:center">班級點名系統</h2>
+    <div id="dataStatus"><span class="status-dot" style="background:#ccc"></span>初始化中...</div>
+    
+    <label>選擇日期</label>
+    <input type="date" id="dateInput" onchange="loadDataFromServer()">
+    
+    <label>選擇班級</label>
+    <select id="classSelect"><option value="">-- 請先載入資料 --</option></select>
+    
+    <button class="btn btn-blue" id="enterBtn" onclick="switchToRollPage()" disabled>進入點名</button>
 </div>
 
-<div class="container hidden" id="rollPage">
-    <h2 id="currentClass"></h2>
-    <div id="list"></div>
-    <button class="btn" style="background:#666; margin-top:20px;" onclick="location.reload()">回首頁</button>
+<div class="container hidden" id="page2">
+    <h3 id="displayClass" style="margin-top:0"></h3>
+    <div id="studentList"></div>
+    <button class="btn" style="background:#666; color:white; margin-top:20px;" onclick="location.reload()">返回重選</button>
 </div>
 
 <script>
-    const API = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
-    let appData = { classes: {}, records: [] };
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
+    let globalData = { classes: {}, records: [] };
 
     window.onload = () => {
-        document.getElementById('datePick').value = new Date().toISOString().split('T')[0];
-        fetchData(); // 預載入
+        document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+        loadDataFromServer();
     };
 
-    async function fetchData() {
-        try {
-            const d = document.getElementById('datePick').value;
-            const r = await fetch(`${API}?action=initData&date=${d}`);
-            appData = await r.json();
-            const sel = document.getElementById('classPick');
-            sel.innerHTML = Object.keys(appData.classes).map(c => `<option value="${c}">${c}</option>`).join('');
-        } catch (e) { console.error("Load Error"); }
+    // 核心：背景載入，不擋住 UI
+    function loadDataFromServer() {
+        const statusDiv = document.getElementById('dataStatus');
+        const date = document.getElementById('dateInput').value;
+        const btn = document.getElementById('enterBtn');
+        
+        statusDiv.innerHTML = '<span class="status-dot" style="background:orange"></span>正在抓取雲端名單...';
+        btn.disabled = true;
+
+        fetch(`${GAS_URL}?action=initData&date=${date}`)
+            .then(res => res.json())
+            .then(data => {
+                globalData = data;
+                updateDropdown();
+                statusDiv.innerHTML = '<span class="status-dot" style="background:green"></span>資料已同步';
+                btn.disabled = false;
+            })
+            .catch(err => {
+                statusDiv.innerHTML = '<span class="status-dot" style="background:red"></span>連線失敗，請檢查網路';
+                console.error(err);
+            });
     }
 
-    async function enterSystem() {
-        const btn = document.getElementById('startBtn');
-        const loader = document.getElementById('loader');
-        const cls = document.getElementById('classPick').value;
-        if(!cls) return;
-
-        btn.disabled = true;
-        loader.classList.remove('hidden');
-
-        try {
-            // 進入前最後刷新一次資料
-            await fetchData();
-            document.getElementById('mainPage').classList.add('hidden');
-            document.getElementById('rollPage').classList.remove('hidden');
-            document.getElementById('currentClass').innerText = cls;
-            render(cls);
-        } catch (err) {
-            alert("通訊失敗，請檢查網路");
-        } finally {
-            // 關鍵：不論如何一定要關閉遮罩
-            loader.classList.add('hidden');
-            btn.disabled = false;
+    function updateDropdown() {
+        const select = document.getElementById('classSelect');
+        const classes = Object.keys(globalData.classes);
+        if (classes.length > 0) {
+            select.innerHTML = classes.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+            select.innerHTML = '<option value="">當日無班級資料</option>';
         }
     }
 
-    function render(cls) {
-        const students = appData.classes[cls] || [];
-        const recordMap = new Map(appData.records.filter(r => r.className === cls).map(r => [r.student, r.status]));
+    function switchToRollPage() {
+        const cls = document.getElementById('classSelect').value;
+        if (!cls) return;
         
-        document.getElementById('list').innerHTML = students.map((s, i) => {
-            const status = recordMap.get(s) || "";
+        document.getElementById('page1').classList.add('hidden');
+        document.getElementById('page2').classList.remove('hidden');
+        document.getElementById('displayClass').innerText = cls + " 點名表";
+        
+        renderList(cls);
+    }
+
+    function renderList(cls) {
+        const listDiv = document.getElementById('studentList');
+        const students = globalData.classes[cls] || [];
+        // 建立紀錄查找 Map，避免 a 同學重複顯示
+        const recordMap = {};
+        globalData.records.forEach(r => {
+            if (r.className === cls) recordMap[r.student] = r.status;
+        });
+
+        listDiv.innerHTML = students.map(s => {
+            const status = recordMap[s] || "";
             return `
                 <div class="card">
-                    <strong>${s}</strong>
-                    <div style="margin-top:10px; display:flex; gap:10px;">
-                        <button class="status-btn ${status==='已到'?'active-p':''}" onclick="send('${s}','已到',this)">已到</button>
-                        <button class="status-btn ${status==='請假'?'active-a':''}" onclick="send('${s}','請假',this)">請假</button>
+                    <div class="student-info"><strong>${s}</strong></div>
+                    <div class="btn-group">
+                        <button class="opt-btn ${status==='已到'?'active-p':''}" onclick="doPost('${s}','已到',this)">已到</button>
+                        <button class="opt-btn ${status==='請假'?'active-a':''}" onclick="doPost('${s}','請假',this)">請假</button>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
-    async function send(name, status, btn) {
-        const date = document.getElementById('datePick').value;
-        const className = document.getElementById('classPick').value;
-        
-        // 立即更新視覺，不等待回傳
+    function doPost(name, status, btn) {
+        // UI 立即回饋
         const parent = btn.parentElement;
-        parent.querySelectorAll('button').forEach(b => b.className = 'status-btn');
-        btn.className = 'status-btn ' + (status === '已到' ? 'active-p' : 'active-a');
+        parent.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active-p', 'active-a'));
+        btn.classList.add(status === '已到' ? 'active-p' : 'active-a');
 
-        // 非同步傳送
-        fetch(API, {
+        const payload = {
+            date: document.getElementById('dateInput').value,
+            className: document.getElementById('classSelect').value,
+            student: name,
+            status: status
+        };
+
+        // 背景傳送，不顯示遮罩
+        fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
-            body: JSON.stringify({ date, className, student: name, status })
-        });
+            body: JSON.stringify(payload)
+        }).catch(e => alert("紀錄傳送失敗，請手動確認網路"));
     }
 </script>
+
 </body>
 </html>
