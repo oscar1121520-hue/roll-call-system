@@ -1,200 +1,132 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級管理系統 - 穩定修復版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>班級點名系統</title>
     <style>
-        :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --warning: #fbbc05; --bg: #f8f9fa; }
-        body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        h1 { color: var(--primary); text-align: center; font-size: 20px; }
-        label { display: block; font-weight: bold; margin: 12px 0 6px; }
-        select, input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        .btn-blue { background: var(--primary); color: white; }
-        .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 12px; background: #fafafa; position: relative; }
-        .status-group { display: flex; gap: 8px; margin: 10px 0; }
-        .status-btn { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; }
-        .active-p { border-color: var(--secondary); background: #e6f4ea; color: #1e8e3e; }
-        .active-a { border-color: var(--danger); background: #fce8e8; color: #d93025; }
-        .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 11px; }
-        .hidden { display: none; }
+        :root { --primary: #1a73e8; --bg: #f8f9fa; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .hidden { display: none !important; }
+        select, input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+        .btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn:disabled { background: #ccc; }
         
-        #loadingOverlay {
+        /* 覆蓋層修正 */
+        #loader {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.95); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 9999;
+            background: rgba(255,255,255,0.9); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 10000;
         }
-        .spinner {
-            width: 45px; height: 45px; border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary); border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .card { border: 1px solid #eee; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .status-btn { padding: 10px 20px; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; }
+        .active-p { background: #e6f4ea; border-color: #34a853; color: #1e8e3e; }
+        .active-a { background: #fce8e8; border-color: #ea4335; color: #d93025; }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay" class="hidden">
+<div id="loader" class="hidden">
     <div class="spinner"></div>
-    <div id="loadingText">系統通訊中，請稍候...</div>
-    <button id="forceCloseBtn" class="hidden" style="margin-top:20px; padding:8px 16px;" onclick="hideOverlay()">強制取消</button>
+    <p>資料處理中...</p>
 </div>
 
-<div class="container">
-    <div id="step1">
-        <h1>班級管理系統</h1>
-        <label>選擇日期</label>
-        <input type="date" id="datePicker">
-        <label>選擇班級</label>
-        <select id="classSelect"><option value="">讀取名單中...</option></select>
-        <button class="btn btn-blue" id="startBtn" onclick="startSystem()">啟動系統</button>
-    </div>
+<div class="container" id="mainPage">
+    <h2>點名系統</h2>
+    <label>日期</label>
+    <input type="date" id="datePick">
+    <label>班級</label>
+    <select id="classPick"><option value="">讀取中...</option></select>
+    <button class="btn" id="startBtn" onclick="enterSystem()">啟動系統</button>
+</div>
 
-    <div id="stepRoll" class="hidden">
-        <h3 id="rollTitle" style="text-align:center;"></h3>
-        <div id="studentList"></div>
-        <button class="btn" style="background:#ddd; margin-top:15px;" onclick="location.reload()">返回主選單</button>
-    </div>
+<div class="container hidden" id="rollPage">
+    <h2 id="currentClass"></h2>
+    <div id="list"></div>
+    <button class="btn" style="background:#666; margin-top:20px;" onclick="location.reload()">回首頁</button>
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
-    let fullData = { classes: {}, records: [] };
-    let offlineQueue = [];
+    const API = "https://script.google.com/macros/s/AKfycbxRJC2RuH1aPMaz_8rPh7lufZbjXIZ0obItOf7IDTFKpID8HtvLwhuy88r7phqPvHF1bg/exec";
+    let appData = { classes: {}, records: [] };
 
     window.onload = () => {
-        document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
-        initLoad(); // 初次載入
-        setInterval(processQueue, 3000);
+        document.getElementById('datePick').value = new Date().toISOString().split('T')[0];
+        fetchData(); // 預載入
     };
 
-    function showOverlay(text) {
-        document.getElementById('loadingText').innerText = text;
-        document.getElementById('loadingOverlay').classList.remove('hidden');
-        document.getElementById('forceCloseBtn').classList.add('hidden');
-        // 5秒後如果還沒關閉，顯示強制取消按鈕
-        setTimeout(() => {
-            document.getElementById('forceCloseBtn').classList.remove('hidden');
-        }, 5000);
-    }
-
-    function hideOverlay() {
-        document.getElementById('loadingOverlay').classList.add('hidden');
-    }
-
-    async function initLoad() {
+    async function fetchData() {
         try {
-            const date = document.getElementById('datePicker').value;
-            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
-            if (!resp.ok) throw new Error("Network error");
-            fullData = await resp.json();
-            updateClassDropdown();
-            localStorage.setItem('cached_fullData', JSON.stringify(fullData));
-        } catch (e) {
-            console.log("Using cache...");
-            const cache = localStorage.getItem('cached_fullData');
-            if (cache) {
-                fullData = JSON.parse(cache);
-                updateClassDropdown();
-            }
-        }
+            const d = document.getElementById('datePick').value;
+            const r = await fetch(`${API}?action=initData&date=${d}`);
+            appData = await r.json();
+            const sel = document.getElementById('classPick');
+            sel.innerHTML = Object.keys(appData.classes).map(c => `<option value="${c}">${c}</option>`).join('');
+        } catch (e) { console.error("Load Error"); }
     }
 
-    function updateClassDropdown() {
-        const select = document.getElementById('classSelect');
-        const names = Object.keys(fullData.classes);
-        if (names.length > 0) {
-            select.innerHTML = names.map(c => `<option value="${c}">${c}</option>`).join('');
-        } else {
-            select.innerHTML = '<option value="">無班級資料</option>';
-        }
-    }
+    async function enterSystem() {
+        const btn = document.getElementById('startBtn');
+        const loader = document.getElementById('loader');
+        const cls = document.getElementById('classPick').value;
+        if(!cls) return;
 
-    async function startSystem() {
-        const cls = document.getElementById('classSelect').value;
-        if (!cls) { alert("請選擇班級"); return; }
+        btn.disabled = true;
+        loader.classList.remove('hidden');
 
-        showOverlay("同步最新紀錄中...");
-        
         try {
-            const date = document.getElementById('datePicker').value;
-            // 嘗試獲取最新狀態
-            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
-            fullData = await resp.json();
-            
-            document.getElementById('step1').classList.add('hidden');
-            document.getElementById('stepRoll').classList.remove('hidden');
-            document.getElementById('rollTitle').innerText = cls;
-            renderStudents(cls);
+            // 進入前最後刷新一次資料
+            await fetchData();
+            document.getElementById('mainPage').classList.add('hidden');
+            document.getElementById('rollPage').classList.remove('hidden');
+            document.getElementById('currentClass').innerText = cls;
+            render(cls);
         } catch (err) {
-            alert("目前無法連接後台，將使用本地快取資料進行點名");
-            document.getElementById('step1').classList.add('hidden');
-            document.getElementById('stepRoll').classList.remove('hidden');
-            document.getElementById('rollTitle').innerText = cls;
-            renderStudents(cls);
+            alert("通訊失敗，請檢查網路");
         } finally {
-            hideOverlay();
+            // 關鍵：不論如何一定要關閉遮罩
+            loader.classList.add('hidden');
+            btn.disabled = false;
         }
     }
 
-    function renderStudents(cls) {
-        const students = fullData.classes[cls] || [];
-        const recordMap = new Map(fullData.records.filter(r => r.className === cls).map(r => [r.student, r]));
-
-        document.getElementById('studentList').innerHTML = students.map((name, i) => {
-            const rec = recordMap.get(name) || { status: "" };
+    function render(cls) {
+        const students = appData.classes[cls] || [];
+        const recordMap = new Map(appData.records.filter(r => r.className === cls).map(r => [r.student, r.status]));
+        
+        document.getElementById('list').innerHTML = students.map((s, i) => {
+            const status = recordMap.get(s) || "";
             return `
-                <div class="card" id="card_${i}" data-name="${name}">
-                    <div class="sync-indicator" id="sync_${i}" style="color:${rec.status ? '#34a853' : '#ccc'}">
-                        ${rec.status ? '● 已同步' : '○ 尚未紀錄'}
-                    </div>
-                    <strong>${name}</strong>
-                    <div class="status-group">
-                        <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" onclick="saveAttendance(${i}, '已到')">已到</div>
-                        <div class="status-btn ${rec.status === '請假' ? 'active-a' : ''}" onclick="saveAttendance(${i}, '請假')">請假</div>
+                <div class="card">
+                    <strong>${s}</strong>
+                    <div style="margin-top:10px; display:flex; gap:10px;">
+                        <button class="status-btn ${status==='已到'?'active-p':''}" onclick="send('${s}','已到',this)">已到</button>
+                        <button class="status-btn ${status==='請假'?'active-a':''}" onclick="send('${s}','請假',this)">請假</button>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
-    function saveAttendance(idx, status) {
-        const card = document.querySelector(`#card_${idx}`);
-        const name = card.dataset.name;
-        const date = document.getElementById('datePicker').value;
-        const cls = document.getElementById('classSelect').value;
-        const indicator = document.getElementById(`sync_${idx}`);
-
-        const btns = card.querySelectorAll('.status-btn');
-        btns[0].className = 'status-btn ' + (status === '已到' ? 'active-p' : '');
-        btns[1].className = 'status-btn ' + (status === '請假' ? 'active-a' : '');
+    async function send(name, status, btn) {
+        const date = document.getElementById('datePick').value;
+        const className = document.getElementById('classPick').value;
         
-        indicator.innerText = "● 待同步...";
-        indicator.style.color = "#fbbc05";
+        // 立即更新視覺，不等待回傳
+        const parent = btn.parentElement;
+        parent.querySelectorAll('button').forEach(b => b.className = 'status-btn');
+        btn.className = 'status-btn ' + (status === '已到' ? 'active-p' : 'active-a');
 
-        const payload = { date, className: cls, student: name, status, note: "", uid: `${date}_${name}` };
-        offlineQueue = offlineQueue.filter(q => q.uid !== payload.uid);
-        offlineQueue.push(payload);
-    }
-
-    async function processQueue() {
-        if (!navigator.onLine || offlineQueue.length === 0) return;
-        const item = offlineQueue[0];
-        try {
-            await fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
-            offlineQueue.shift();
-            
-            // 更新 UI 為已同步
-            document.querySelectorAll('.card').forEach(c => {
-                if(c.dataset.name === item.student) {
-                    const ind = c.querySelector('.sync-indicator');
-                    ind.innerText = "● 已同步";
-                    ind.style.color = "#34a853";
-                }
-            });
-        } catch (e) { console.error("Sync failed, will retry..."); }
+        // 非同步傳送
+        fetch(API, {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify({ date, className, student: name, status })
+        });
     }
 </script>
 </body>
