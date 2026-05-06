@@ -3,35 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級管理系統 - 安全同步版</title>
+    <title>班級管理系統 - 穩定修復版</title>
     <style>
         :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --warning: #fbbc05; --bg: #f8f9fa; }
-        body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        h1 { color: var(--primary); text-align: center; font-size: 22px; margin-bottom: 20px; }
-        label { display: block; font-weight: bold; margin: 12px 0 6px; color: #555; }
+        body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { color: var(--primary); text-align: center; font-size: 20px; }
+        label { display: block; font-weight: bold; margin: 12px 0 6px; }
         .day-label { font-size: 14px; color: var(--primary); font-weight: bold; margin-bottom: 10px; display: block; }
-        select, input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 5px; }
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .btn-blue { background: var(--primary); color: white; }
         .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 12px; background: #fafafa; position: relative; }
         .status-group { display: flex; gap: 8px; margin: 10px 0; }
-        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; }
+        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .active-p { border-color: var(--secondary); background: #e6f4ea; color: #1e8e3e; }
         .active-a { border-color: var(--danger); background: #fce8e8; color: #d93025; }
-        .memo-input { width: 100%; padding: 8px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; }
         .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 11px; }
         .st-wait { color: var(--warning); font-weight: bold; }
-        .st-ok { color: var(--secondary); }
+        .st-ok { color: var(--secondary); font-weight: bold; }
         .hidden { display: none; }
-        .view-card { border-left: 4px solid var(--danger); padding: 10px; margin-bottom: 8px; background: #fff5f5; display: flex; justify-content: space-between; align-items: center; }
-        .cls-tag { font-size: 11px; background: #eee; padding: 2px 5px; border-radius: 4px; color: #666; }
+        .view-card { border-left: 4px solid var(--danger); padding: 10px; margin-bottom: 8px; background: #fff5f5; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
+        .cls-tag { font-size: 11px; background: #eee; padding: 2px 5px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>班級點名系統</h1>
+    <h1 id="mainTitle">班級管理系統</h1>
     
     <div id="step1">
         <label>選擇日期</label>
@@ -39,31 +38,22 @@
         <span id="dayLabel" class="day-label"></span>
 
         <label>操作模式</label>
-        <select id="mode" onchange="toggleModeUI()">
-            <option value="roll">📝 老師點名模式</option>
-            <option value="view">👁️ 觀察者：全校缺席總覽</option>
-            <option value="view_single">👁️ 觀察者：單班詳細看板</option>
-        </select>
+        <select id="mode" onchange="toggleModeUI()"><option value="roll">📝 點名模式</option><option value="view">👁️ 全校缺席總覽</option><option value="view_single">👁️ 單班詳細看板</option></select>
 
-        <div id="classSelectArea">
-            <label>選擇班級</label>
-            <select id="classSelect"><option>載入中...</option></select>
-        </div>
-        <button class="btn btn-blue" onclick="startSystem()">啟動系統</button>
+        <div id="classSelectArea"><label>選擇班級</label><select id="classSelect"><option>讀取資料中...</option></select></div>
+        <button class="btn btn-blue" id="startBtn" onclick="startSystem()">啟動系統</button>
     </div>
 
-    <!-- 點名介面 -->
     <div id="stepRoll" class="hidden">
-        <h2 id="rollTitle" style="text-align:center;"></h2>
+        <h3 id="rollTitle" style="text-align:center;"></h3>
         <div id="studentList"></div>
-        <button class="btn" style="background:#dadce0;" onclick="safeReturn()">返回主選單</button>
+        <button class="btn" style="background:#ddd;" onclick="safeReturn()">返回主選單</button>
     </div>
 
-    <!-- 觀察者/總覽介面 -->
     <div id="stepView" class="hidden">
-        <h2 id="viewHeader" style="text-align:center; font-size:18px;"></h2>
+        <h3 id="viewHeader" style="text-align:center;"></h3>
         <div id="summaryArea"></div>
-        <button class="btn" style="background:#dadce0;" onclick="location.reload()">返回主選單</button>
+        <button class="btn" style="background:#ddd;" onclick="location.reload()">返回主選單</button>
     </div>
 </div>
 
@@ -72,25 +62,17 @@
     let fullData = { classes: {}, records: [] };
     let offlineQueue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
 
-    window.onload = async () => {
+    window.onload = () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('datePicker').value = today;
         updateDayLabel();
-        
-        // 初始化載入
         loadData();
-        setInterval(processQueue, 5000);
-    };
-
-    // 攔截未同步即關閉頁面的行為
-    window.onbeforeunload = function() {
-        if (offlineQueue.length > 0) {
-            return "尚有資料正在同步中，現在離開可能導致紀錄遺失，確定要離開嗎？";
-        }
+        setInterval(processQueue, 3000);
     };
 
     async function loadData() {
         const date = document.getElementById('datePicker').value;
+        const btn = document.getElementById('startBtn');
         try {
             const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
             fullData = await resp.json();
@@ -102,55 +84,52 @@
         }
     }
 
-    function safeReturn() {
-        if (offlineQueue.length > 0) {
-            const confirmLeave = confirm("尚有 " + offlineQueue.length + " 筆資料待同步，返回可能導致這些紀錄未即時存檔（稍後連網會自動補傳），確定返回？");
-            if (!confirmLeave) return;
-        }
-        location.reload();
-    }
-
-    function updateDayLabel() {
-        const dateVal = document.getElementById('datePicker').value;
-        const days = ['日', '一', '二', '三', '四', '五', '六'];
-        const date = new Date(dateVal);
-        const dayName = days[date.getDay()];
-        document.getElementById('dayLabel').innerText = `(${dayName}) 星期${dayName}`;
-    }
-
     function renderClassOptions() {
         const select = document.getElementById('classSelect');
         const classNames = Object.keys(fullData.classes);
-        select.innerHTML = classNames.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (classNames.length > 0) {
+            select.innerHTML = classNames.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+    }
+
+    function updateDayLabel() {
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+        const date = new Date(document.getElementById('datePicker').value);
+        if (!isNaN(date.getTime())) {
+            const day = days[date.getDay()];
+            document.getElementById('dayLabel').innerText = `(${day}) 星期${day}`;
+        }
     }
 
     function toggleModeUI() {
-        const mode = document.getElementById('mode').value;
-        document.getElementById('classSelectArea').classList.toggle('hidden', mode === 'view');
+        document.getElementById('classSelectArea').classList.toggle('hidden', document.getElementById('mode').value === 'view');
     }
 
     async function startSystem() {
-        const mode = document.getElementById('mode').value;
-        const cls = document.getElementById('classSelect').value;
-        const date = document.getElementById('datePicker').value;
-        
-        // 進入系統前先靜默更新一次資料，確保觀察者模式是最新的
-        await loadData();
+        const btn = document.getElementById('startBtn');
+        btn.innerText = "載入中...";
+        btn.disabled = true;
 
-        document.getElementById('step1').classList.add('hidden');
-        
-        if (mode === 'roll') {
-            document.getElementById('stepRoll').classList.remove('hidden');
-            document.getElementById('rollTitle').innerText = `${cls} 點名`;
-            renderRollMode(cls);
-        } else if (mode === 'view') {
-            document.getElementById('stepView').classList.remove('hidden');
-            document.getElementById('viewHeader').innerText = "全校缺席總覽";
-            renderGlobalView();
-        } else {
-            document.getElementById('stepView').classList.remove('hidden');
-            document.getElementById('viewHeader').innerText = `${cls} 詳細看板`;
-            renderSingleView(cls);
+        try {
+            await loadData(); // 進入前刷新最新狀態
+            const mode = document.getElementById('mode').value;
+            const cls = document.getElementById('classSelect').value;
+            document.getElementById('step1').classList.add('hidden');
+            
+            if (mode === 'roll') {
+                document.getElementById('stepRoll').classList.remove('hidden');
+                document.getElementById('rollTitle').innerText = cls;
+                renderRollMode(cls);
+            } else {
+                document.getElementById('stepView').classList.remove('hidden');
+                document.getElementById('viewHeader').innerText = (mode === 'view' ? "全校缺席總覽" : cls + " 看板");
+                mode === 'view' ? renderGlobalView() : renderSingleView(cls);
+            }
+        } catch(err) {
+            alert("啟動失敗，請檢查網路後重試");
+        } finally {
+            btn.innerText = "啟動系統";
+            btn.disabled = false;
         }
     }
 
@@ -162,8 +141,8 @@
         document.getElementById('studentList').innerHTML = students.map((name, i) => {
             const rec = recordMap.get(name) || { status: "", note: "" };
             return `
-                <div class="card" data-name="${name}" id="card_${i}" data-status="${rec.status}">
-                    <div class="sync-indicator" id="sync_${i}">${rec.status ? '● 已存' : ''}</div>
+                <div class="card" id="card_${i}" data-name="${name}" data-status="${rec.status}">
+                    <div class="sync-indicator" id="sync_${i}">${rec.status ? '<span class="st-ok">● 已同步</span>' : ''}</div>
                     <strong>${name}</strong>
                     <div class="status-group">
                         <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" id="btn_p_${i}" onclick="handleSelect(${i}, '已到')">已到</div>
@@ -173,42 +152,6 @@
                 </div>
             `;
         }).join('');
-    }
-
-    function renderGlobalView() {
-        const absents = fullData.records.filter(r => r.status === "請假");
-        const area = document.getElementById('summaryArea');
-        if (absents.length === 0) {
-            area.innerHTML = "<p style='text-align:center; color:#888; margin-top:20px;'>今日目前無人請假</p>";
-            return;
-        }
-        area.innerHTML = absents.map(r => `
-            <div class="view-card">
-                <div>
-                    <span class="cls-tag">${r.className}</span><br>
-                    <strong>${r.student}</strong>
-                </div>
-                <div style="text-align:right;">
-                    <span style="color:var(--danger); font-weight:bold;">請假</span><br>
-                    <span style="font-size:12px; color:#666;">${r.note || ''}</span>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    function renderSingleView(cls) {
-        const records = fullData.records.filter(r => r.className === cls);
-        const area = document.getElementById('summaryArea');
-        if (records.length === 0) {
-            area.innerHTML = "<p style='text-align:center; color:#888;'>此班級今日尚無紀錄</p>";
-            return;
-        }
-        area.innerHTML = records.map(r => `
-            <div class="view-card" style="border-left-color: ${r.status === '已到' ? 'var(--secondary)' : 'var(--danger)'}">
-                <strong>${r.student}</strong>
-                <span style="font-size:13px; color:${r.status === '已到' ? '#1e8e3e' : '#d93025'}; font-weight:bold;">${r.status} ${r.note ? '<br><small style="color:#888;font-weight:normal">'+r.note+'</small>' : ''}</span>
-            </div>
-        `).join('');
     }
 
     function handleSelect(idx, status) {
@@ -221,17 +164,16 @@
 
     function queueData(idx) {
         const card = document.getElementById(`card_${idx}`);
-        const indicator = document.getElementById(`sync_${idx}`);
-        const payload = {
-            date: document.getElementById('datePicker').value,
-            className: document.getElementById('classSelect').value,
-            student: card.dataset.name,
-            status: card.dataset.status,
-            note: document.getElementById(`memo_${idx}`).value,
-            uid: `${document.getElementById('datePicker').value}_${card.dataset.name}`
-        };
-        indicator.innerText = "● 待同步";
-        indicator.className = "sync-indicator st-wait";
+        const name = card.dataset.name;
+        const status = card.dataset.status;
+        const note = document.getElementById(`memo_${idx}`).value;
+        const date = document.getElementById('datePicker').value;
+        const cls = document.getElementById('classSelect').value;
+
+        const payload = { date, className: cls, student: name, status, note, uid: `${date}_${name}` };
+        
+        document.getElementById(`sync_${idx}`).innerHTML = '<span class="st-wait">● 待同步</span>';
+        
         offlineQueue = offlineQueue.filter(q => q.uid !== payload.uid);
         offlineQueue.push(payload);
         localStorage.setItem('attendance_queue', JSON.stringify(offlineQueue));
@@ -245,6 +187,11 @@
             await fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
             offlineQueue.shift();
             localStorage.setItem('attendance_queue', JSON.stringify(offlineQueue));
+            
+            // 同步後靜默更新 fullData 避免閃爍
+            const existingIdx = fullData.records.findIndex(r => r.student === item.student && r.className === item.className);
+            if(existingIdx > -1) fullData.records[existingIdx] = item; else fullData.records.push(item);
+            
             updateSyncUI(item.student);
             processQueue();
         } catch (e) {}
@@ -254,11 +201,35 @@
         const cards = document.querySelectorAll('.card');
         cards.forEach((card, i) => {
             if (card.dataset.name === name) {
-                const ind = document.getElementById(`sync_${i}`);
-                ind.innerText = "● 已同步";
-                ind.className = "sync-indicator st-ok";
+                document.getElementById(`sync_${i}`).innerHTML = '<span class="st-ok">● 已同步</span>';
             }
         });
+    }
+
+    function renderGlobalView() {
+        const absents = fullData.records.filter(r => r.status === "請假");
+        document.getElementById('summaryArea').innerHTML = absents.length ? absents.map(r => `
+            <div class="view-card">
+                <div><span class="cls-tag">${r.className}</span><br><strong>${r.student}</strong></div>
+                <div style="text-align:right;"><span style="color:var(--danger); font-weight:bold;">請假</span><br><small>${r.note || ''}</small></div>
+            </div>
+        `).join('') : "<p style='text-align:center; color:#999;'>今日無人請假</p>";
+    }
+
+    function renderSingleView(cls) {
+        const records = fullData.records.filter(r => r.className === cls);
+        document.getElementById('summaryArea').innerHTML = records.length ? records.map(r => `
+            <div class="view-card" style="border-left-color:${r.status === '已到' ? 'var(--secondary)' : 'var(--danger)'}">
+                <strong>${r.student}</strong><span>${r.status} <small>${r.note || ''}</small></span>
+            </div>
+        `).join('') : "<p style='text-align:center; color:#999;'>尚無紀錄</p>";
+    }
+
+    function safeReturn() {
+        if (offlineQueue.length > 0) {
+            if (!confirm("尚有資料同步中，確定返回？")) return;
+        }
+        location.reload();
     }
 </script>
 </body>
