@@ -3,44 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級管理系統 - 效能優化版</title>
+    <title>班級管理系統 - 穩定修復版</title>
     <style>
         :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --warning: #fbbc05; --bg: #f8f9fa; }
         body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        h1 { color: var(--primary); text-align: center; }
+        h1 { color: var(--primary); text-align: center; font-size: 20px; }
         label { display: block; font-weight: bold; margin: 12px 0 6px; }
         select, input { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
         .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
         .btn-blue { background: var(--primary); color: white; }
         .card { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 12px; background: #fafafa; position: relative; }
         .status-group { display: flex; gap: 8px; margin: 10px 0; }
-        .status-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; }
+        .status-btn { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; }
         .active-p { border-color: var(--secondary); background: #e6f4ea; color: #1e8e3e; }
         .active-a { border-color: var(--danger); background: #fce8e8; color: #d93025; }
-        .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 11px; font-weight: bold; }
+        .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 11px; }
         .hidden { display: none; }
         
-        /* Loading 遮罩樣式 */
         #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9); display: flex; flex-direction: column;
+            background: rgba(255,255,255,0.95); display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 9999;
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary); border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 10px;
+            width: 45px; height: 45px; border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<!-- Loading 遮罩 -->
 <div id="loadingOverlay" class="hidden">
     <div class="spinner"></div>
-    <div id="loadingText">系統初始化中...</div>
+    <div id="loadingText">系統通訊中，請稍候...</div>
+    <button id="forceCloseBtn" class="hidden" style="margin-top:20px; padding:8px 16px;" onclick="hideOverlay()">強制取消</button>
 </div>
 
 <div class="container">
@@ -48,23 +47,15 @@
         <h1>班級管理系統</h1>
         <label>選擇日期</label>
         <input type="date" id="datePicker">
-        <label>操作模式</label>
-        <select id="mode" onchange="toggleModeUI()">
-            <option value="roll">📝 點名模式</option>
-            <option value="view">👁️ 全校缺席總覽</option>
-        </select>
-        <div id="classSelectArea">
-            <label>選擇班級</label>
-            <select id="classSelect"><option>讀取名單中...</option></select>
-        </div>
-        <button class="btn btn-blue" onclick="startSystem()">啟動系統</button>
+        <label>選擇班級</label>
+        <select id="classSelect"><option value="">讀取名單中...</option></select>
+        <button class="btn btn-blue" id="startBtn" onclick="startSystem()">啟動系統</button>
     </div>
 
-    <!-- 點名介面 -->
     <div id="stepRoll" class="hidden">
         <h3 id="rollTitle" style="text-align:center;"></h3>
         <div id="studentList"></div>
-        <button class="btn" style="background:#ddd; margin-top:10px;" onclick="location.reload()">返回主選單</button>
+        <button class="btn" style="background:#ddd; margin-top:15px;" onclick="location.reload()">返回主選單</button>
     </div>
 </div>
 
@@ -75,60 +66,85 @@
 
     window.onload = () => {
         document.getElementById('datePicker').value = new Date().toISOString().split('T')[0];
-        loadInitialData();
+        initLoad(); // 初次載入
         setInterval(processQueue, 3000);
     };
 
-    async function loadInitialData() {
+    function showOverlay(text) {
+        document.getElementById('loadingText').innerText = text;
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+        document.getElementById('forceCloseBtn').classList.add('hidden');
+        // 5秒後如果還沒關閉，顯示強制取消按鈕
+        setTimeout(() => {
+            document.getElementById('forceCloseBtn').classList.remove('hidden');
+        }, 5000);
+    }
+
+    function hideOverlay() {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+
+    async function initLoad() {
         try {
             const date = document.getElementById('datePicker').value;
             const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
+            if (!resp.ok) throw new Error("Network error");
             fullData = await resp.json();
-            const select = document.getElementById('classSelect');
-            const classNames = Object.keys(fullData.classes);
-            if (classNames.length > 0) {
-                select.innerHTML = classNames.map(c => `<option value="${c}">${c}</option>`).join('');
+            updateClassDropdown();
+            localStorage.setItem('cached_fullData', JSON.stringify(fullData));
+        } catch (e) {
+            console.log("Using cache...");
+            const cache = localStorage.getItem('cached_fullData');
+            if (cache) {
+                fullData = JSON.parse(cache);
+                updateClassDropdown();
             }
-        } catch (e) { console.error("Initial load failed"); }
-    }
-
-    function toggleModeUI() {
-        document.getElementById('classSelectArea').classList.toggle('hidden', document.getElementById('mode').value === 'view');
-    }
-
-    async function startSystem() {
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.remove('hidden');
-        
-        try {
-            // 確保啟動時抓取最新資料，避免觀察者模式不同步
-            const date = document.getElementById('datePicker').value;
-            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
-            fullData = await resp.json();
-
-            const mode = document.getElementById('mode').value;
-            const cls = document.getElementById('classSelect').value;
-
-            document.getElementById('step1').classList.add('hidden');
-            if (mode === 'roll') {
-                document.getElementById('stepRoll').classList.remove('hidden');
-                document.getElementById('rollTitle').innerText = cls;
-                renderRollList(cls);
-            }
-            // 觀看模式邏輯可依此類推...
-        } catch (err) {
-            alert("載入失敗，請確認網路連線");
-        } finally {
-            overlay.classList.add('hidden');
         }
     }
 
-    function renderRollList(cls) {
+    function updateClassDropdown() {
+        const select = document.getElementById('classSelect');
+        const names = Object.keys(fullData.classes);
+        if (names.length > 0) {
+            select.innerHTML = names.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+            select.innerHTML = '<option value="">無班級資料</option>';
+        }
+    }
+
+    async function startSystem() {
+        const cls = document.getElementById('classSelect').value;
+        if (!cls) { alert("請選擇班級"); return; }
+
+        showOverlay("同步最新紀錄中...");
+        
+        try {
+            const date = document.getElementById('datePicker').value;
+            // 嘗試獲取最新狀態
+            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
+            fullData = await resp.json();
+            
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('stepRoll').classList.remove('hidden');
+            document.getElementById('rollTitle').innerText = cls;
+            renderStudents(cls);
+        } catch (err) {
+            alert("目前無法連接後台，將使用本地快取資料進行點名");
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('stepRoll').classList.remove('hidden');
+            document.getElementById('rollTitle').innerText = cls;
+            renderStudents(cls);
+        } finally {
+            hideOverlay();
+        }
+    }
+
+    function renderStudents(cls) {
         const students = fullData.classes[cls] || [];
         const recordMap = new Map(fullData.records.filter(r => r.className === cls).map(r => [r.student, r]));
 
         document.getElementById('studentList').innerHTML = students.map((name, i) => {
-            const rec = recordMap.get(name) || { status: "", note: "" };
+            const rec = recordMap.get(name) || { status: "" };
             return `
                 <div class="card" id="card_${i}" data-name="${name}">
                     <div class="sync-indicator" id="sync_${i}" style="color:${rec.status ? '#34a853' : '#ccc'}">
@@ -136,34 +152,31 @@
                     </div>
                     <strong>${name}</strong>
                     <div class="status-group">
-                        <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" onclick="submitAttendance(${i}, '已到')">已到</div>
-                        <div class="status-btn ${rec.status === '請假' ? 'active-a' : ''}" onclick="submitAttendance(${i}, '請假')">請假</div>
+                        <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" onclick="saveAttendance(${i}, '已到')">已到</div>
+                        <div class="status-btn ${rec.status === '請假' ? 'active-a' : ''}" onclick="saveAttendance(${i}, '請假')">請假</div>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
-    function submitAttendance(idx, status) {
+    function saveAttendance(idx, status) {
         const card = document.querySelector(`#card_${idx}`);
         const name = card.dataset.name;
         const date = document.getElementById('datePicker').value;
         const cls = document.getElementById('classSelect').value;
         const indicator = document.getElementById(`sync_${idx}`);
 
-        // 立即更新 UI 狀態（避免閃爍）
         const btns = card.querySelectorAll('.status-btn');
         btns[0].className = 'status-btn ' + (status === '已到' ? 'active-p' : '');
         btns[1].className = 'status-btn ' + (status === '請假' ? 'active-a' : '');
+        
         indicator.innerText = "● 待同步...";
         indicator.style.color = "#fbbc05";
 
         const payload = { date, className: cls, student: name, status, note: "", uid: `${date}_${name}` };
-        
-        // 加入隊列
         offlineQueue = offlineQueue.filter(q => q.uid !== payload.uid);
         offlineQueue.push(payload);
-        processQueue();
     }
 
     async function processQueue() {
@@ -172,11 +185,8 @@
         try {
             await fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
             offlineQueue.shift();
-            // 更新本地資料狀態，防止返回再進入後看到舊資料
-            const idx = fullData.records.findIndex(r => r.student === item.student && r.className === item.className);
-            if(idx > -1) fullData.records[idx] = item; else fullData.records.push(item);
             
-            // 找到對應的卡片更新為「已同步」
+            // 更新 UI 為已同步
             document.querySelectorAll('.card').forEach(c => {
                 if(c.dataset.name === item.student) {
                     const ind = c.querySelector('.sync-indicator');
@@ -184,8 +194,7 @@
                     ind.style.color = "#34a853";
                 }
             });
-            processQueue();
-        } catch (e) {}
+        } catch (e) { console.error("Sync failed, will retry..."); }
     }
 </script>
 </body>
