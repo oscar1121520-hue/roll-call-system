@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級管理系統 - 極速總覽版</title>
+    <title>班級管理系統 - 安全同步版</title>
     <style>
         :root { --primary: #1a73e8; --secondary: #34a853; --danger: #ea4335; --warning: #fbbc05; --bg: #f8f9fa; }
         body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
@@ -21,7 +21,7 @@
         .active-a { border-color: var(--danger); background: #fce8e8; color: #d93025; }
         .memo-input { width: 100%; padding: 8px; border: 1px solid #eee; border-radius: 6px; box-sizing: border-box; }
         .sync-indicator { position: absolute; top: 10px; right: 15px; font-size: 11px; }
-        .st-wait { color: var(--warning); }
+        .st-wait { color: var(--warning); font-weight: bold; }
         .st-ok { color: var(--secondary); }
         .hidden { display: none; }
         .view-card { border-left: 4px solid var(--danger); padding: 10px; margin-bottom: 8px; background: #fff5f5; display: flex; justify-content: space-between; align-items: center; }
@@ -52,12 +52,14 @@
         <button class="btn btn-blue" onclick="startSystem()">啟動系統</button>
     </div>
 
+    <!-- 點名介面 -->
     <div id="stepRoll" class="hidden">
         <h2 id="rollTitle" style="text-align:center;"></h2>
         <div id="studentList"></div>
-        <button class="btn" style="background:#dadce0;" onclick="location.reload()">返回主選單</button>
+        <button class="btn" style="background:#dadce0;" onclick="safeReturn()">返回主選單</button>
     </div>
 
+    <!-- 觀察者/總覽介面 -->
     <div id="stepView" class="hidden">
         <h2 id="viewHeader" style="text-align:center; font-size:18px;"></h2>
         <div id="summaryArea"></div>
@@ -71,14 +73,26 @@
     let offlineQueue = JSON.parse(localStorage.getItem('attendance_queue') || '[]');
 
     window.onload = async () => {
-        // 設定今日日期與標籤
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('datePicker').value = today;
         updateDayLabel();
         
-        // 極速預載
+        // 初始化載入
+        loadData();
+        setInterval(processQueue, 5000);
+    };
+
+    // 攔截未同步即關閉頁面的行為
+    window.onbeforeunload = function() {
+        if (offlineQueue.length > 0) {
+            return "尚有資料正在同步中，現在離開可能導致紀錄遺失，確定要離開嗎？";
+        }
+    };
+
+    async function loadData() {
+        const date = document.getElementById('datePicker').value;
         try {
-            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${today}`);
+            const resp = await fetch(`${SCRIPT_URL}?action=initData&date=${date}`);
             fullData = await resp.json();
             renderClassOptions();
             localStorage.setItem('cached_full_data', JSON.stringify(fullData));
@@ -86,12 +100,18 @@
             fullData = JSON.parse(localStorage.getItem('cached_full_data') || '{"classes":{}, "records":[]}');
             renderClassOptions();
         }
-        setInterval(processQueue, 5000);
-    };
+    }
+
+    function safeReturn() {
+        if (offlineQueue.length > 0) {
+            const confirmLeave = confirm("尚有 " + offlineQueue.length + " 筆資料待同步，返回可能導致這些紀錄未即時存檔（稍後連網會自動補傳），確定返回？");
+            if (!confirmLeave) return;
+        }
+        location.reload();
+    }
 
     function updateDayLabel() {
         const dateVal = document.getElementById('datePicker').value;
-        if (!dateVal) return;
         const days = ['日', '一', '二', '三', '四', '五', '六'];
         const date = new Date(dateVal);
         const dayName = days[date.getDay()];
@@ -109,10 +129,14 @@
         document.getElementById('classSelectArea').classList.toggle('hidden', mode === 'view');
     }
 
-    function startSystem() {
+    async function startSystem() {
         const mode = document.getElementById('mode').value;
         const cls = document.getElementById('classSelect').value;
         const date = document.getElementById('datePicker').value;
+        
+        // 進入系統前先靜默更新一次資料，確保觀察者模式是最新的
+        await loadData();
+
         document.getElementById('step1').classList.add('hidden');
         
         if (mode === 'roll') {
@@ -142,16 +166,14 @@
                     <div class="sync-indicator" id="sync_${i}">${rec.status ? '● 已存' : ''}</div>
                     <strong>${name}</strong>
                     <div class="status-group">
-                        <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" id="btn_p_${i}" onclick="handleSelect(${idxToI(i)}, '已到')">已到</div>
-                        <div class="status-btn ${rec.status === '請假' ? 'active-a' : ''}" id="btn_a_${i}" onclick="handleSelect(${idxToI(i)}, '請假')">請假</div>
+                        <div class="status-btn ${rec.status === '已到' ? 'active-p' : ''}" id="btn_p_${i}" onclick="handleSelect(${i}, '已到')">已到</div>
+                        <div class="status-btn ${rec.status === '請假' ? 'active-a' : ''}" id="btn_a_${i}" onclick="handleSelect(${i}, '請假')">請假</div>
                     </div>
-                    <input type="text" id="memo_${i}" class="memo-input" placeholder="備註..." value="${rec.note}" onchange="queueData(${idxToI(i)})">
+                    <input type="text" id="memo_${i}" class="memo-input" placeholder="備註..." value="${rec.note}" onchange="queueData(${i})">
                 </div>
             `;
         }).join('');
     }
-    // 修正索引傳遞小問題
-    function idxToI(i){ return i; }
 
     function renderGlobalView() {
         const absents = fullData.records.filter(r => r.status === "請假");
@@ -191,8 +213,8 @@
 
     function handleSelect(idx, status) {
         const card = document.getElementById(`card_${idx}`);
-        document.getElementById(`btn_p_${idx}`).classList.toggle('active-p', status === '已到');
-        document.getElementById(`btn_a_${idx}`).classList.toggle('active-a', status === '請假');
+        document.getElementById(`btn_p_${idx}`).className = 'status-btn ' + (status === '已到' ? 'active-p' : '');
+        document.getElementById(`btn_a_${idx}`).className = 'status-btn ' + (status === '請假' ? 'active-a' : '');
         card.dataset.status = status;
         queueData(idx);
     }
@@ -223,12 +245,12 @@
             await fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
             offlineQueue.shift();
             localStorage.setItem('attendance_queue', JSON.stringify(offlineQueue));
-            updateUI(item.student);
+            updateSyncUI(item.student);
             processQueue();
         } catch (e) {}
     }
 
-    function updateUI(name) {
+    function updateSyncUI(name) {
         const cards = document.querySelectorAll('.card');
         cards.forEach((card, i) => {
             if (card.dataset.name === name) {
